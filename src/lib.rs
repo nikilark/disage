@@ -1,7 +1,6 @@
 #![feature(test)]
 use std::fmt::Debug;
 extern crate test;
-use rayon::prelude::*;
 pub mod pixels {
     pub trait AsHashedPixel<T: Clone> {
         fn hash(&self) -> T;
@@ -33,8 +32,6 @@ pub mod pixels {
 }
 
 pub mod hashers {
-    use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-
     pub trait PixelHasher<V, T> {
         fn hash(&self, data: &[Vec<V>], position: (u32, u32), size: (u32, u32)) -> T;
     }
@@ -178,6 +175,7 @@ pub mod converters {
     }
 }
 
+#[allow(dead_code)]
 pub struct DiscretePixel<T> {
     value: T,
     x: u32,
@@ -706,7 +704,7 @@ mod tests {
         let w = img.width();
         let v: Vec<[u16; 3]> = img.pixels().map(|f| f.0).collect();
         b.iter(move || {
-            let discrete = DiscreteImage::new(
+            DiscreteImage::new(
                 v.clone(),
                 hashers::BrightnessHasher {},
                 w,
@@ -725,7 +723,7 @@ mod tests {
         let w = img.width();
         let v: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
         b.iter(move || {
-            let discrete = DiscreteImage::new(v.clone(), hashers::BrightnessHasher {}, w, 100u16);
+            DiscreteImage::new(v.clone(), hashers::BrightnessHasher {}, w, 100u16);
         });
     }
 }

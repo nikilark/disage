@@ -175,6 +175,71 @@ pub mod converters {
     }
 }
 
+pub mod open {
+    use super::*;
+    #[allow(dead_code)]
+    pub fn rgb8<H: hashers::PixelHasher<[u8; 3], [u8; 3]> + std::marker::Send + std::marker::Sync>(
+        path: &str,
+        precision: [u8; 3],
+        hasher: H,
+    ) -> Result<DiscreteImage<[u8; 3]>, Box<dyn std::error::Error>> {
+        let img = image::io::Reader::open(path)?.decode()?.into_rgb8();
+        let raw_pixels: Vec<[u8; 3]> = img.pixels().map(|f| f.0).collect();
+        Ok(DiscreteImage::new(
+            raw_pixels,
+            hasher,
+            img.width(),
+            precision,
+        ))
+    }
+    #[allow(dead_code)]
+    pub fn rgb16<
+        H: hashers::PixelHasher<[u16; 3], [u16; 3]> + std::marker::Send + std::marker::Sync,
+    >(
+        path: &str,
+        precision: [u16; 3],
+        hasher: H,
+    ) -> Result<DiscreteImage<[u16; 3]>, Box<dyn std::error::Error>> {
+        let img = image::io::Reader::open(path)?.decode()?.into_rgb16();
+        let raw_pixels: Vec<[u16; 3]> = img.pixels().map(|f| f.0).collect();
+        Ok(DiscreteImage::new(
+            raw_pixels,
+            hasher,
+            img.width(),
+            precision,
+        ))
+    }
+    #[allow(dead_code)]
+    pub fn luma8<H: hashers::PixelHasher<u8, u8> + std::marker::Send + std::marker::Sync>(
+        path: &str,
+        precision: u8,
+        hasher: H,
+    ) -> Result<DiscreteImage<u8>, Box<dyn std::error::Error>> {
+        let img = image::io::Reader::open(path)?.decode()?.into_luma8();
+        let raw_pixels: Vec<u8> = img.pixels().map(|f| f.0[0]).collect();
+        Ok(DiscreteImage::new(
+            raw_pixels,
+            hasher,
+            img.width(),
+            precision,
+        ))
+    }
+    #[allow(dead_code)]
+    pub fn luma16<H: hashers::PixelHasher<u16, u16> + std::marker::Send + std::marker::Sync>(
+        path: &str,
+        precision: u16,
+        hasher: H,
+    ) -> Result<DiscreteImage<u16>, Box<dyn std::error::Error>> {
+        let img = image::io::Reader::open(path)?.decode()?.into_luma16();
+        let raw_pixels: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
+        Ok(DiscreteImage::new(
+            raw_pixels,
+            hasher,
+            img.width(),
+            precision,
+        ))
+    }
+}
 #[allow(dead_code)]
 pub struct DiscretePixel<T> {
     value: T,
@@ -314,6 +379,10 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
         }
     }
 
+    pub fn compression(&self) -> i8 {
+        (100f64 - ((self.group_count() as f64 / (self.width * self.height) as f64) * (100f64))) as i8
+    }
+
     pub fn collect(self, borders: Option<T>) -> Vec<Vec<T>> {
         match self.pixels {
             PixelGroup::Leaf(el) => match borders {
@@ -446,7 +515,7 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
         }
     }
 
-    fn pixels_to_array<V: Clone>(
+    pub fn pixels_to_array<V: Clone>(
         pixels: &[impl pixels::AsHashedPixel<V>],
         width: u32,
     ) -> Vec<Vec<V>> {

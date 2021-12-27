@@ -1,5 +1,5 @@
 #![feature(test)]
-use std::{fmt::Debug};
+use std::fmt::Debug;
 extern crate test;
 use rayon::prelude::*;
 pub mod pixels {
@@ -279,10 +279,13 @@ impl PixelOpps<i32> for i32 {
     }
 }
 
-impl<T: PixelOpps<T> + Copy> DiscreteImage<T> {
-    pub fn new<V: Clone + Debug>(
+impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteImage<T> {
+    pub fn new<
+        V: Clone + Debug + std::marker::Send + std::marker::Sync,
+        H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
+    >(
         raw_data: Vec<impl pixels::AsHashedPixel<V>>,
-        hasher: impl hashers::PixelHasher<V, T>,
+        hasher: H,
         width: u32,
         precision: T,
     ) -> DiscreteImage<T> {
@@ -327,9 +330,12 @@ impl<T: PixelOpps<T> + Copy> DiscreteImage<T> {
         }
     }
 
-    fn create<V: Clone + Debug>(
+    fn create<
+        V: Clone + Debug + std::marker::Send + std::marker::Sync,
+        H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
+    >(
         array: &[Vec<V>],
-        hasher: &impl hashers::PixelHasher<V, T>,
+        hasher: &H,
         position: (u32, u32),
         size: (u32, u32),
         precision: T,
@@ -338,71 +344,71 @@ impl<T: PixelOpps<T> + Copy> DiscreteImage<T> {
         let (x, y) = position;
         let pixels: PixelGroup<T> = match size {
             (1, 1) => PixelGroup::Leaf(hasher.hash(array, position, size)),
-            _ => match width > height {
-                true => {
-                    let middle = width / 2;
-                    let (left_hash, right_hash) = (
-                        hasher.hash(array, (x, y), (height, middle)),
-                        hasher.hash(array, (x + middle, y), (height, width - middle)),
-                    );
-                    let eq = DiscreteImage::positive_sub(left_hash, right_hash).lt(precision);
-                    match eq {
-                        true => PixelGroup::Leaf(left_hash),
-                        false => {
-                            PixelGroup::Node(
-                            Box::new(DiscreteImage::create(
-                                array,
-                                hasher,
-                                (x, y),
-                                (height, middle),
-                                precision,
-                            )),
-                            Box::new(DiscreteImage::create(
-                                array,
-                                hasher,
-                                (x + middle, y),
-                                (height, width - middle),
-                                precision,
-                            )),
-                            Splitted::Vertical,
-                        )},
+            _ => {
+                let ((fpos, fsize), (spos, ssize), split_at) =
+                    DiscreteImage::<T>::pre_split(height, width, x, y);
+                let (f_hash, s_hash) = (
+                    hasher.hash(array, fpos, fsize),
+                    hasher.hash(array, spos, ssize),
+                );
+                let eq = DiscreteImage::positive_sub(f_hash, s_hash).lt(precision);
+                match eq {
+                    true => PixelGroup::Leaf(s_hash),
+                    false => {
+                        let (f, s) = match height * width > 5000 {
+                            true => rayon::join(
+                                || {
+                                    Box::new(DiscreteImage::create(
+                                        array, hasher, fpos, fsize, precision,
+                                    ))
+                                },
+                                || {
+                                    Box::new(DiscreteImage::create(
+                                        array, hasher, spos, ssize, precision,
+                                    ))
+                                },
+                            ),
+                            false => (
+                                Box::new(DiscreteImage::create(
+                                    array, hasher, fpos, fsize, precision,
+                                )),
+                                Box::new(DiscreteImage::create(
+                                    array, hasher, spos, ssize, precision,
+                                )),
+                            ),
+                        };
+                        PixelGroup::Node(f, s, split_at)
                     }
                 }
-                false => {
-                    let middle = height / 2;
-                    let (top_hash, bottom_hash) = (
-                        hasher.hash(array, (x, y), (middle, width)),
-                        hasher.hash(array, (x, y + middle), (height - middle, width)),
-                    );
-                    let eq = DiscreteImage::positive_sub(top_hash, bottom_hash).lt(precision);
-                    match eq {
-                        true => PixelGroup::Leaf(top_hash.into()),
-                        false => PixelGroup::Node(
-                            Box::new(DiscreteImage::create(
-                                array,
-                                hasher,
-                                (x, y),
-                                (middle, width),
-                                precision,
-                            )),
-                            Box::new(DiscreteImage::create(
-                                array,
-                                hasher,
-                                (x, y + middle),
-                                (height - middle, width),
-                                precision,
-                            )),
-                            Splitted::Horizontal,
-                        ),
-                    }
-                }
-            },
+            }
         };
         DiscreteImage {
             pixels,
             position,
             width,
             height,
+        }
+    }
+
+    fn pre_split(
+        height: u32,
+        width: u32,
+        x: u32,
+        y: u32,
+    ) -> (((u32, u32), (u32, u32)), ((u32, u32), (u32, u32)), Splitted) {
+        match width > height {
+            true => {
+                let middle = width / 2;
+                let f = ((x, y), (height, middle));
+                let s = ((x + middle, y), (height, width - middle));
+                (f, s, Splitted::Vertical)
+            }
+            false => {
+                let middle = height / 2;
+                let f = ((x, y), (middle, width));
+                let s = ((x, y + middle), (height - middle, width));
+                (f, s, Splitted::Horizontal)
+            }
         }
     }
 
@@ -691,18 +697,35 @@ mod tests {
     }
 
     #[bench]
-    fn open_discrete_rgb16(b : &mut test::Bencher) {
-        let img = image::io::Reader::open("./test/test.jpg").expect("Failed to open image").decode().expect("Failed to decode image").into_rgb16();
+    fn open_discrete_rgb16(b: &mut test::Bencher) {
+        let img = image::io::Reader::open("./test/test.jpg")
+            .expect("Failed to open image")
+            .decode()
+            .expect("Failed to decode image")
+            .into_rgb16();
         let w = img.width();
-        let v : Vec<[u16;3]>= img.pixels().map(|f| f.0).collect();
-        b.iter(move || {let discrete = DiscreteImage::new(v.clone(), hashers::BrightnessHasher{}, w, [200u16,200,200]);});
+        let v: Vec<[u16; 3]> = img.pixels().map(|f| f.0).collect();
+        b.iter(move || {
+            let discrete = DiscreteImage::new(
+                v.clone(),
+                hashers::BrightnessHasher {},
+                w,
+                [200u16, 200, 200],
+            );
+        });
     }
 
     #[bench]
-    fn open_discrete_luma16(b : &mut test::Bencher) {
-        let img = image::io::Reader::open("./test/test.jpg").expect("Failed to open image").decode().expect("Failed to decode image").into_luma16();
+    fn open_discrete_luma16(b: &mut test::Bencher) {
+        let img = image::io::Reader::open("./test/test.jpg")
+            .expect("Failed to open image")
+            .decode()
+            .expect("Failed to decode image")
+            .into_luma16();
         let w = img.width();
-        let v : Vec<u16>= img.pixels().map(|f| f.0[0]).collect();
-        b.iter(move || {let discrete = DiscreteImage::new(v.clone(), hashers::BrightnessHasher{}, w, 100u16);});
+        let v: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
+        b.iter(move || {
+            let discrete = DiscreteImage::new(v.clone(), hashers::BrightnessHasher {}, w, 100u16);
+        });
     }
 }

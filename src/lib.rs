@@ -1,6 +1,47 @@
 #![feature(test)]
 use std::fmt::Debug;
 extern crate test;
+
+#[derive(Debug, Clone, Copy, std::cmp::PartialEq, Eq, PartialOrd, Ord)]
+pub struct Dimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Dimensions {
+    pub fn new(height: u32, width: u32) -> Dimensions {
+        Dimensions { width, height }
+    }
+
+    pub fn tuplehw(&self) -> (u32, u32) {
+        (self.height, self.width)
+    }
+
+    pub fn from_tuplehw((height, width): (u32, u32)) -> Dimensions {
+        Dimensions { width, height }
+    }
+}
+
+#[derive(Debug, Clone, Copy, std::cmp::PartialEq, Eq, PartialOrd, Ord)]
+pub struct Position {
+    pub x: u32,
+    pub y: u32,
+}
+
+impl Position {
+    pub fn new(x: u32, y: u32) -> Position {
+        Position { x, y }
+    }
+
+    pub fn tuplexy(&self) -> (u32, u32) {
+        (self.x, self.y)
+    }
+
+    pub fn from_tuplexy((x, y): (u32, u32)) -> Position {
+        Position { x, y }
+    }
+}
+
 pub mod pixels {
     pub trait AsHashedPixel<T: Clone> {
         fn hash(&self) -> T;
@@ -18,6 +59,18 @@ pub mod pixels {
         }
     }
 
+    impl AsHashedPixel<[u8; 3]> for image::Rgb<u8> {
+        fn hash(&self) -> [u8; 3] {
+            [self[0], self[1], self[2]]
+        }
+    }
+
+    impl AsHashedPixel<[u16; 3]> for image::Rgb<u16> {
+        fn hash(&self) -> [u16; 3] {
+            [self[0], self[1], self[2]]
+        }
+    }
+
     impl AsHashedPixel<u8> for u8 {
         fn hash(&self) -> u8 {
             self.clone()
@@ -29,19 +82,33 @@ pub mod pixels {
             self.clone()
         }
     }
+
+    impl AsHashedPixel<u8> for image::Luma<u8> {
+        fn hash(&self) -> u8 {
+            self.clone()[0]
+        }
+    }
+
+    impl AsHashedPixel<u16> for image::Luma<u16> {
+        fn hash(&self) -> u16 {
+            self.clone()[0]
+        }
+    }
 }
 
 pub mod hashers {
+    use crate::{Dimensions, Position};
+
     pub trait PixelHasher<V, T> {
-        fn hash(&self, data: &[Vec<V>], position: (u32, u32), size: (u32, u32)) -> T;
+        fn hash(&self, data: &[Vec<V>], position: Position, size: Dimensions) -> T;
     }
 
     pub struct BrightnessHasher {}
 
     impl PixelHasher<u8, u8> for BrightnessHasher {
-        fn hash(&self, data: &[Vec<u8>], position: (u32, u32), size: (u32, u32)) -> u8 {
-            let (x, y) = position;
-            let (h, w) = size;
+        fn hash(&self, data: &[Vec<u8>], position: Position, size: Dimensions) -> u8 {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
             let mut res: u32 = 0;
             for i in y..y + h {
                 for j in x..x + w {
@@ -53,9 +120,9 @@ pub mod hashers {
     }
 
     impl PixelHasher<u16, u16> for BrightnessHasher {
-        fn hash(&self, data: &[Vec<u16>], position: (u32, u32), size: (u32, u32)) -> u16 {
-            let (x, y) = position;
-            let (h, w) = size;
+        fn hash(&self, data: &[Vec<u16>], position: Position, size: Dimensions) -> u16 {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
             let mut res: u64 = 0;
             for i in y..y + h {
                 for j in x..x + w {
@@ -67,9 +134,9 @@ pub mod hashers {
     }
 
     impl PixelHasher<[u8; 3], [u8; 3]> for BrightnessHasher {
-        fn hash(&self, data: &[Vec<[u8; 3]>], position: (u32, u32), size: (u32, u32)) -> [u8; 3] {
-            let (x, y) = position;
-            let (h, w) = size;
+        fn hash(&self, data: &[Vec<[u8; 3]>], position: Position, size: Dimensions) -> [u8; 3] {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
             let mut res: [u32; 3] = [0, 0, 0];
             for i in y..y + h {
                 for j in x..x + w {
@@ -89,9 +156,9 @@ pub mod hashers {
     }
 
     impl PixelHasher<[u16; 3], [u16; 3]> for BrightnessHasher {
-        fn hash(&self, data: &[Vec<[u16; 3]>], position: (u32, u32), size: (u32, u32)) -> [u16; 3] {
-            let (x, y) = position;
-            let (h, w) = size;
+        fn hash(&self, data: &[Vec<[u16; 3]>], position: Position, size: Dimensions) -> [u16; 3] {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
             let mut res: [u64; 3] = [0, 0, 0];
             for i in y..y + h {
                 for j in x..x + w {
@@ -164,6 +231,16 @@ pub mod converters {
         img
     }
 
+    pub fn to_luma8_from32(array: &[Vec<u32>]) -> image::GrayImage {
+        let (h, w) = (array.len(), array[0].len());
+        let mut img = image::ImageBuffer::new(w as u32, h as u32);
+        img.enumerate_pixels_mut()
+            .for_each(|(x, y, pix): (u32, u32, &mut image::Luma<u8>)| {
+                pix.0 = [((array[y as usize][x as usize] >> 24) as u8)]
+            });
+        img
+    }
+
     pub fn to_luma16(array: &[Vec<u16>]) -> image::ImageBuffer<image::Luma<u16>, Vec<u16>> {
         let (h, w) = (array.len(), array[0].len());
         let mut img = image::ImageBuffer::new(w as u32, h as u32);
@@ -177,97 +254,100 @@ pub mod converters {
 
 pub mod open {
     use super::*;
+    use image::{ImageBuffer, Luma, Rgb};
     #[allow(dead_code)]
-    pub fn rgb8<H: hashers::PixelHasher<[u8; 3], [u8; 3]> + std::marker::Send + std::marker::Sync>(
-        path: &str,
+    pub fn rgb8<
+        H: hashers::PixelHasher<[u8; 3], [u8; 3]> + std::marker::Send + std::marker::Sync,
+    >(
+        img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
         precision: [u8; 3],
         hasher: H,
-    ) -> Result<DiscreteImage<[u8; 3]>, Box<dyn std::error::Error>> {
-        let img = image::io::Reader::open(path)?.decode()?.into_rgb8();
+    ) -> DiscreteImage<[u8; 3]> {
         let raw_pixels: Vec<[u8; 3]> = img.pixels().map(|f| f.0).collect();
-        Ok(DiscreteImage::new(
+        DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-        ))
+        )
     }
     #[allow(dead_code)]
     pub fn rgb16<
         H: hashers::PixelHasher<[u16; 3], [u16; 3]> + std::marker::Send + std::marker::Sync,
     >(
-        path: &str,
+        img: ImageBuffer<Rgb<u16>, Vec<u16>>,
         precision: [u16; 3],
         hasher: H,
-    ) -> Result<DiscreteImage<[u16; 3]>, Box<dyn std::error::Error>> {
-        let img = image::io::Reader::open(path)?.decode()?.into_rgb16();
+    ) -> DiscreteImage<[u16; 3]> {
         let raw_pixels: Vec<[u16; 3]> = img.pixels().map(|f| f.0).collect();
-        Ok(DiscreteImage::new(
+        DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-        ))
+        )
     }
     #[allow(dead_code)]
     pub fn luma8<H: hashers::PixelHasher<u8, u8> + std::marker::Send + std::marker::Sync>(
-        path: &str,
+        img: ImageBuffer<Luma<u8>, Vec<u8>>,
         precision: u8,
         hasher: H,
-    ) -> Result<DiscreteImage<u8>, Box<dyn std::error::Error>> {
-        let img = image::io::Reader::open(path)?.decode()?.into_luma8();
+    ) -> DiscreteImage<u8> {
         let raw_pixels: Vec<u8> = img.pixels().map(|f| f.0[0]).collect();
-        Ok(DiscreteImage::new(
+        DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-        ))
+        )
     }
     #[allow(dead_code)]
     pub fn luma16<H: hashers::PixelHasher<u16, u16> + std::marker::Send + std::marker::Sync>(
-        path: &str,
+        img: ImageBuffer<Luma<u16>, Vec<u16>>,
         precision: u16,
         hasher: H,
-    ) -> Result<DiscreteImage<u16>, Box<dyn std::error::Error>> {
-        let img = image::io::Reader::open(path)?.decode()?.into_luma16();
+    ) -> DiscreteImage<u16> {
         let raw_pixels: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
-        Ok(DiscreteImage::new(
+        DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-        ))
+        )
     }
 }
 #[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscretePixel<T> {
-    value: T,
-    x: u32,
-    y: u32,
+    pub value: T,
+    pub position: Position,
+    pub size: Dimensions,
 }
 
 impl<T> DiscretePixel<T> {
-    pub fn new(value: T, x: u32, y: u32) -> DiscretePixel<T> {
-        DiscretePixel { value, x, y }
+    pub fn new(value: T, position: Position, size: Dimensions) -> DiscretePixel<T> {
+        DiscretePixel {
+            value,
+            position,
+            size,
+        }
     }
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Splitted {
     Horizontal,
     Vertical,
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum PixelGroup<T> {
     Leaf(T),
     Node(Box<DiscreteImage<T>>, Box<DiscreteImage<T>>, Splitted),
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DiscreteImage<T> {
     pixels: PixelGroup<T>,
-    position: (u32, u32),
-    height: u32,
-    width: u32,
+    position: Position,
+    pub size: Dimensions,
 }
 
 pub trait PixelOpps<T> {
@@ -354,7 +434,13 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
     ) -> DiscreteImage<T> {
         let array = DiscreteImage::<T>::pixels_to_array(&raw_data, width);
         let height = array.len();
-        DiscreteImage::create(&array, &hasher, (0, 0), (height as u32, width), precision)
+        DiscreteImage::create(
+            &array,
+            &hasher,
+            Position::from_tuplexy((0, 0)),
+            Dimensions::from_tuplehw((height as u32, width)),
+            precision,
+        )
     }
 
     pub fn group_count(&self) -> usize {
@@ -366,11 +452,7 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
 
     pub fn pixels(&self) -> Vec<DiscretePixel<T>> {
         match &self.pixels {
-            PixelGroup::Leaf(v) => vec![DiscretePixel::new(
-                v.clone(),
-                self.position.0,
-                self.position.1,
-            )],
+            PixelGroup::Leaf(v) => vec![DiscretePixel::new(v.clone(), self.position, self.size)],
             PixelGroup::Node(f, s, _) => {
                 let mut fp = f.pixels();
                 fp.append(&mut s.pixels());
@@ -380,14 +462,16 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
     }
 
     pub fn compression(&self) -> i8 {
-        (100f64 - ((self.group_count() as f64 / (self.width * self.height) as f64) * (100f64))) as i8
+        (100f64
+            - ((self.group_count() as f64 / (self.size.width * self.size.height) as f64)
+                * (100f64))) as i8
     }
 
     pub fn collect(self, borders: Option<T>) -> Vec<Vec<T>> {
         match self.pixels {
             PixelGroup::Leaf(el) => match borders {
-                None => DiscreteImage::array_from_el(el, self.width, self.height),
-                Some(def) => DiscreteImage::array_with_borders(el, self.width, self.height, def),
+                None => DiscreteImage::array_from_el(el, self.size),
+                Some(def) => DiscreteImage::array_with_borders(el, self.size, def),
             },
             PixelGroup::Node(f, s, d) => {
                 let mut res = f.collect(borders);
@@ -403,13 +487,13 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
     >(
         array: &[Vec<V>],
         hasher: &H,
-        position: (u32, u32),
-        size: (u32, u32),
+        position: Position,
+        size: Dimensions,
         precision: T,
     ) -> DiscreteImage<T> {
-        let (height, width) = size;
-        let (x, y) = position;
-        let pixels: PixelGroup<T> = match size {
+        let (height, width) = size.tuplehw();
+        let (x, y) = position.tuplexy();
+        let pixels: PixelGroup<T> = match size.tuplehw() {
             (1, 1) => PixelGroup::Leaf(hasher.hash(array, position, size)),
             _ => {
                 let ((fpos, fsize), (spos, ssize), split_at) =
@@ -452,8 +536,7 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
         DiscreteImage {
             pixels,
             position,
-            width,
-            height,
+            size,
         }
     }
 
@@ -462,28 +545,41 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
         width: u32,
         x: u32,
         y: u32,
-    ) -> (((u32, u32), (u32, u32)), ((u32, u32), (u32, u32)), Splitted) {
+    ) -> ((Position, Dimensions), (Position, Dimensions), Splitted) {
         match width > height {
             true => {
                 let middle = width / 2;
-                let f = ((x, y), (height, middle));
-                let s = ((x + middle, y), (height, width - middle));
+                let f = (
+                    Position::from_tuplexy((x, y)),
+                    Dimensions::from_tuplehw((height, middle)),
+                );
+                let s = (
+                    Position::from_tuplexy((x + middle, y)),
+                    Dimensions::from_tuplehw((height, width - middle)),
+                );
                 (f, s, Splitted::Vertical)
             }
             false => {
                 let middle = height / 2;
-                let f = ((x, y), (middle, width));
-                let s = ((x, y + middle), (height - middle, width));
+                let f = (
+                    Position::from_tuplexy((x, y)),
+                    Dimensions::from_tuplehw((middle, width)),
+                );
+                let s = (
+                    Position::from_tuplexy((x, y + middle)),
+                    Dimensions::from_tuplehw((height - middle, width)),
+                );
                 (f, s, Splitted::Horizontal)
             }
         }
     }
 
-    fn array_from_el(elem: T, width: u32, height: u32) -> Vec<Vec<T>> {
-        vec![vec![elem; width as usize]; height as usize]
+    fn array_from_el(elem: T, size: Dimensions) -> Vec<Vec<T>> {
+        vec![vec![elem; size.width as usize]; size.height as usize]
     }
 
-    fn array_with_borders(elem: T, width: u32, height: u32, default: T) -> Vec<Vec<T>> {
+    fn array_with_borders(elem: T, size: Dimensions, default: T) -> Vec<Vec<T>> {
+        let (height, width) = size.tuplehw();
         let mut res = Vec::with_capacity(height as usize);
         res.push(vec![default; width as usize]);
         for _ in 1..height - 1 {
@@ -540,9 +636,12 @@ mod tests {
 
     #[test]
     fn array_from_el_test() {
-        assert_eq!(DiscreteImage::array_from_el(42u8, 1, 1), vec![vec![42u8]]);
         assert_eq!(
-            DiscreteImage::array_from_el(42u8, 2, 2),
+            DiscreteImage::array_from_el(42u8, Dimensions::new(1, 1)),
+            vec![vec![42u8]]
+        );
+        assert_eq!(
+            DiscreteImage::array_from_el(42u8, Dimensions::new(2, 2)),
             vec![vec![42u8, 42u8], vec![42u8, 42u8]]
         );
     }
@@ -550,15 +649,15 @@ mod tests {
     #[test]
     fn array_with_borders_test() {
         assert_eq!(
-            DiscreteImage::array_with_borders(24u8, 1, 1, 42u8),
+            DiscreteImage::array_with_borders(24u8, Dimensions::new(1, 1), 42u8),
             vec![vec![42u8]]
         );
         assert_eq!(
-            DiscreteImage::array_with_borders(24u8, 2, 2, 42u8),
+            DiscreteImage::array_with_borders(24u8, Dimensions::new(2, 2), 42u8),
             vec![vec![42u8, 42u8], vec![42u8, 42u8]]
         );
         assert_eq!(
-            DiscreteImage::array_with_borders(24u8, 3, 3, 42u8),
+            DiscreteImage::array_with_borders(24u8, Dimensions::new(3, 3), 42u8),
             vec![
                 vec![42u8, 42u8, 42u8],
                 vec![42u8, 24u8, 42u8],
@@ -642,9 +741,9 @@ mod tests {
             vec![7, 8, 9],
             vec![10, 11, 12],
         ];
-        assert_eq!(b.hash(&arr, (0, 0), (4, 3)), 6);
-        assert_eq!(b.hash(&arr, (1, 1), (2, 2)), 7);
-        assert_eq!(b.hash(&arr, (1, 2), (1, 1)), 8);
+        assert_eq!(b.hash(&arr, Position::new(0, 0), Dimensions::new(4, 3)), 6);
+        assert_eq!(b.hash(&arr, Position::new(1, 1), Dimensions::new(2, 2)), 7);
+        assert_eq!(b.hash(&arr, Position::new(1, 2), Dimensions::new(1, 1)), 8);
     }
 
     #[test]
@@ -656,50 +755,56 @@ mod tests {
         DiscreteImage::concat(&mut arr1c, arr2, Splitted::Horizontal);
         let vimg = arr1;
         let himg = arr1c;
-        let vd = DiscreteImage::create(&vimg, &BrightnessHasher {}, (0, 0), (3, 6), 2);
+        let vd = DiscreteImage::create(
+            &vimg,
+            &BrightnessHasher {},
+            Position::new(0, 0),
+            Dimensions::new(3, 6),
+            2,
+        );
         let left = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
-            position: (0, 0),
-            width: 3,
-            height: 3,
+            position: Position::new(0, 0),
+            size: Dimensions::new(3, 3),
         };
         let right = DiscreteImage {
             pixels: PixelGroup::Leaf(22u8),
-            position: (3, 0),
-            width: 3,
-            height: 3,
+            position: Position::new(3, 0),
+            size: Dimensions::new(3, 3),
         };
         let group = PixelGroup::Node(Box::new(left), Box::new(right), Splitted::Vertical);
         assert_eq!(
             vd,
             DiscreteImage {
                 pixels: group,
-                position: (0, 0),
-                width: 6,
-                height: 3
+                position: Position::new(0, 0),
+                size: Dimensions::new(3, 6)
             }
         );
-        let hd = DiscreteImage::create(&himg, &BrightnessHasher {}, (0, 0), (6, 3), 2);
+        let hd = DiscreteImage::create(
+            &himg,
+            &BrightnessHasher {},
+            Position::new(0, 0),
+            Dimensions::new(6, 3),
+            2,
+        );
         let top = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
-            position: (0, 0),
-            width: 3,
-            height: 3,
+            position: Position::new(0, 0),
+            size: Dimensions::new(3, 3),
         };
         let bottom = DiscreteImage {
             pixels: PixelGroup::Leaf(22u8),
-            position: (0, 3),
-            width: 3,
-            height: 3,
+            position: Position::new(0, 3),
+            size: Dimensions::new(3, 3),
         };
         let group = PixelGroup::Node(Box::new(top), Box::new(bottom), Splitted::Horizontal);
         assert_eq!(
             hd,
             DiscreteImage {
                 pixels: group,
-                position: (0, 0),
-                width: 3,
-                height: 6
+                position: Position::new(0, 0),
+                size: Dimensions::new(6, 3)
             }
         );
     }
@@ -713,51 +818,57 @@ mod tests {
         DiscreteImage::concat(&mut arr1c, arr2, Splitted::Horizontal);
         let vimg = arr1;
         let himg = arr1c;
-        let vd = DiscreteImage::create(&vimg, &BrightnessHasher {}, (0, 0), (3, 6), 2);
+        let vd = DiscreteImage::create(
+            &vimg,
+            &BrightnessHasher {},
+            Position::new(0, 0),
+            Dimensions::new(3, 6),
+            2,
+        );
         let left = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
-            position: (0, 0),
-            width: 3,
-            height: 3,
+            position: Position::new(0, 0),
+            size: Dimensions::new(3, 3),
         };
         let right = DiscreteImage {
             pixels: PixelGroup::Leaf(22u8),
-            position: (3, 0),
-            width: 3,
-            height: 3,
+            position: Position::new(3, 0),
+            size: Dimensions::new(3, 3),
         };
         let group = PixelGroup::Node(Box::new(left), Box::new(right), Splitted::Vertical);
         assert_eq!(
             vd,
             DiscreteImage {
                 pixels: group,
-                position: (0, 0),
-                width: 6,
-                height: 3
+                position: Position::new(0, 0),
+                size: Dimensions::new(3, 6)
             }
         );
         assert_eq!(vimg, vd.collect(None));
-        let hd = DiscreteImage::create(&himg, &BrightnessHasher {}, (0, 0), (6, 3), 2);
+        let hd = DiscreteImage::create(
+            &himg,
+            &BrightnessHasher {},
+            Position::new(0, 0),
+            Dimensions::new(6, 3),
+            2,
+        );
         let top = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
-            position: (0, 0),
-            width: 3,
-            height: 3,
+            position: Position::new(0, 0),
+            size: Dimensions::new(3, 3),
         };
         let bottom = DiscreteImage {
             pixels: PixelGroup::Leaf(22u8),
-            position: (0, 3),
-            width: 3,
-            height: 3,
+            position: Position::new(0, 3),
+            size: Dimensions::new(3, 3),
         };
         let group = PixelGroup::Node(Box::new(top), Box::new(bottom), Splitted::Horizontal);
         assert_eq!(
             hd,
             DiscreteImage {
                 pixels: group,
-                position: (0, 0),
-                width: 3,
-                height: 6
+                position: Position::new(0, 0),
+                size: Dimensions::new(6, 3)
             }
         );
         assert_eq!(himg, hd.collect(None));

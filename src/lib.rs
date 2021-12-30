@@ -103,9 +103,9 @@ pub mod hashers {
         fn hash(&self, data: &[Vec<V>], position: Position, size: Dimensions) -> T;
     }
 
-    pub struct BrightnessHasher {}
+    pub struct MeanBrightnessHasher {}
 
-    impl PixelHasher<u8, u8> for BrightnessHasher {
+    impl PixelHasher<u8, u8> for MeanBrightnessHasher {
         fn hash(&self, data: &[Vec<u8>], position: Position, size: Dimensions) -> u8 {
             let (x, y) = position.tuplexy();
             let (h, w) = size.tuplehw();
@@ -119,7 +119,7 @@ pub mod hashers {
         }
     }
 
-    impl PixelHasher<u16, u16> for BrightnessHasher {
+    impl PixelHasher<u16, u16> for MeanBrightnessHasher {
         fn hash(&self, data: &[Vec<u16>], position: Position, size: Dimensions) -> u16 {
             let (x, y) = position.tuplexy();
             let (h, w) = size.tuplehw();
@@ -133,7 +133,7 @@ pub mod hashers {
         }
     }
 
-    impl PixelHasher<[u8; 3], [u8; 3]> for BrightnessHasher {
+    impl PixelHasher<[u8; 3], [u8; 3]> for MeanBrightnessHasher {
         fn hash(&self, data: &[Vec<[u8; 3]>], position: Position, size: Dimensions) -> [u8; 3] {
             let (x, y) = position.tuplexy();
             let (h, w) = size.tuplehw();
@@ -155,7 +155,7 @@ pub mod hashers {
         }
     }
 
-    impl PixelHasher<[u16; 3], [u16; 3]> for BrightnessHasher {
+    impl PixelHasher<[u16; 3], [u16; 3]> for MeanBrightnessHasher {
         fn hash(&self, data: &[Vec<[u16; 3]>], position: Position, size: Dimensions) -> [u16; 3] {
             let (x, y) = position.tuplexy();
             let (h, w) = size.tuplehw();
@@ -174,6 +174,82 @@ pub mod hashers {
                 (res[1] / wh) as u16,
                 (res[2] / wh) as u16,
             ]
+        }
+    }
+
+    pub struct MedianBrightnessHasher {}
+
+    impl PixelHasher<u8, u8> for MedianBrightnessHasher {
+        fn hash(&self, data: &[Vec<u8>], position: Position, size: Dimensions) -> u8 {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
+            let mut res: Vec<u8> = Vec::with_capacity((h * w) as usize);
+            for i in y..y + h {
+                for j in x..x + w {
+                    res.push(data[i as usize][j as usize].clone());
+                }
+            }
+            res[res.len()/2]
+        }
+    }
+
+    impl PixelHasher<u16, u16> for MedianBrightnessHasher {
+        fn hash(&self, data: &[Vec<u16>], position: Position, size: Dimensions) -> u16 {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
+            let mut res: Vec<u16> = Vec::with_capacity((h * w) as usize);
+            for i in y..y + h {
+                for j in x..x + w {
+                    res.push(data[i as usize][j as usize].clone());
+                }
+            }
+            res[res.len()/2]
+        }
+    }
+
+    impl PixelHasher<[u8; 3], [u8; 3]> for MedianBrightnessHasher {
+        fn hash(&self, data: &[Vec<[u8; 3]>], position: Position, size: Dimensions) -> [u8; 3] {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
+            let mut res: Vec<[u8; 3]> = Vec::with_capacity((h * w) as usize);
+            for i in y..y + h {
+                for j in x..x + w {
+                    res.push(data[i as usize][j as usize]);
+                }
+            }
+            res.sort_by(|a, b| {
+                if a == b {
+                    return std::cmp::Ordering::Equal;
+                }
+                if a[0] < b[0] && a[1] < b[1] && a[2] < b[2] {
+                    return std::cmp::Ordering::Less;
+                }
+                return std::cmp::Ordering::Greater;
+            });
+            res[res.len()/2]
+        }
+    }
+
+    impl PixelHasher<[u16; 3], [u16; 3]> for MedianBrightnessHasher {
+        fn hash(&self, data: &[Vec<[u16; 3]>], position: Position, size: Dimensions) -> [u16; 3] {
+            let (x, y) = position.tuplexy();
+            let (h, w) = size.tuplehw();
+            let mut res: Vec<[u16; 3]> = Vec::with_capacity((h * w) as usize);
+            for i in y..y + h {
+                for j in x..x + w {
+                    res.push(data[i as usize][j as usize]);
+                }
+            }
+            res.sort_by(|a, b| {
+                if a == b {
+                    return std::cmp::Ordering::Equal;
+                }
+                if a[0] < b[0] && a[1] < b[1] && a[2] < b[2] {
+                    return std::cmp::Ordering::Less;
+                }
+                return std::cmp::Ordering::Greater;
+            });
+            res[res.len()/2]
         }
     }
 }
@@ -262,6 +338,7 @@ pub mod open {
         img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
         precision: [u8; 3],
         hasher: H,
+        max_splits : usize
     ) -> DiscreteImage<[u8; 3]> {
         let raw_pixels: Vec<[u8; 3]> = img.pixels().map(|f| f.0).collect();
         DiscreteImage::new(
@@ -269,6 +346,8 @@ pub mod open {
             hasher,
             img.width(),
             precision,
+            10,
+            max_splits
         )
     }
     #[allow(dead_code)]
@@ -278,6 +357,7 @@ pub mod open {
         img: ImageBuffer<Rgb<u16>, Vec<u16>>,
         precision: [u16; 3],
         hasher: H,
+        max_splits : usize
     ) -> DiscreteImage<[u16; 3]> {
         let raw_pixels: Vec<[u16; 3]> = img.pixels().map(|f| f.0).collect();
         DiscreteImage::new(
@@ -285,6 +365,8 @@ pub mod open {
             hasher,
             img.width(),
             precision,
+            10,
+            max_splits
         )
     }
     #[allow(dead_code)]
@@ -292,6 +374,7 @@ pub mod open {
         img: ImageBuffer<Luma<u8>, Vec<u8>>,
         precision: u8,
         hasher: H,
+        max_splits : usize
     ) -> DiscreteImage<u8> {
         let raw_pixels: Vec<u8> = img.pixels().map(|f| f.0[0]).collect();
         DiscreteImage::new(
@@ -299,6 +382,8 @@ pub mod open {
             hasher,
             img.width(),
             precision,
+            10,
+            max_splits
         )
     }
     #[allow(dead_code)]
@@ -306,6 +391,7 @@ pub mod open {
         img: ImageBuffer<Luma<u16>, Vec<u16>>,
         precision: u16,
         hasher: H,
+        max_splits : usize
     ) -> DiscreteImage<u16> {
         let raw_pixels: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
         DiscreteImage::new(
@@ -313,6 +399,8 @@ pub mod open {
             hasher,
             img.width(),
             precision,
+            10,
+            max_splits
         )
     }
 }
@@ -431,6 +519,8 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
         hasher: H,
         width: u32,
         precision: T,
+        min_splits: usize,
+        max_splits : usize
     ) -> DiscreteImage<T> {
         let array = DiscreteImage::<T>::pixels_to_array(&raw_data, width);
         let height = array.len();
@@ -440,6 +530,9 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
             Position::from_tuplexy((0, 0)),
             Dimensions::from_tuplehw((height as u32, width)),
             precision,
+            1,
+            min_splits, 
+            max_splits
         )
     }
 
@@ -490,6 +583,9 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
         position: Position,
         size: Dimensions,
         precision: T,
+        step : usize,
+        min_splits : usize,
+        max_splits : usize
     ) -> DiscreteImage<T> {
         let (height, width) = size.tuplehw();
         let (x, y) = position.tuplexy();
@@ -498,33 +594,31 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
             _ => {
                 let ((fpos, fsize), (spos, ssize), split_at) =
                     DiscreteImage::<T>::pre_split(height, width, x, y);
-                let (f_hash, s_hash) = (
-                    hasher.hash(array, fpos, fsize),
-                    hasher.hash(array, spos, ssize),
-                );
-                let eq = DiscreteImage::positive_sub(f_hash, s_hash).lt(precision);
+                let f_hash = 
+                    hasher.hash(array, fpos, fsize);
+                let eq = if step < min_splits {false} else if step > max_splits {true} else  {DiscreteImage::positive_sub(f_hash, hasher.hash(array, spos, ssize)).lt(precision)};
                 match eq {
-                    true => PixelGroup::Leaf(s_hash),
+                    true => PixelGroup::Leaf(f_hash),
                     false => {
                         let (f, s) = match height * width > 5000 {
                             true => rayon::join(
                                 || {
                                     Box::new(DiscreteImage::create(
-                                        array, hasher, fpos, fsize, precision,
+                                        array, hasher, fpos, fsize, precision, step + 1, min_splits, max_splits
                                     ))
                                 },
                                 || {
                                     Box::new(DiscreteImage::create(
-                                        array, hasher, spos, ssize, precision,
+                                        array, hasher, spos, ssize, precision, step +1, min_splits, max_splits
                                     ))
                                 },
                             ),
                             false => (
                                 Box::new(DiscreteImage::create(
-                                    array, hasher, fpos, fsize, precision,
+                                    array, hasher, fpos, fsize, precision, step + 1, min_splits, max_splits
                                 )),
                                 Box::new(DiscreteImage::create(
-                                    array, hasher, spos, ssize, precision,
+                                    array, hasher, spos, ssize, precision, step+1, min_splits, max_splits
                                 )),
                             ),
                         };
@@ -630,7 +724,7 @@ impl<T: PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteIma
 }
 #[cfg(test)]
 mod tests {
-    use crate::hashers::{BrightnessHasher, PixelHasher};
+    use crate::hashers::{MeanBrightnessHasher, PixelHasher};
 
     use super::*;
 
@@ -734,7 +828,7 @@ mod tests {
 
     #[test]
     fn brightness_hasher_test() {
-        let b = BrightnessHasher {};
+        let b = MeanBrightnessHasher {};
         let arr: Vec<Vec<u8>> = vec![
             vec![1, 2, 3],
             vec![4, 5, 6],
@@ -757,10 +851,13 @@ mod tests {
         let himg = arr1c;
         let vd = DiscreteImage::create(
             &vimg,
-            &BrightnessHasher {},
+            &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
             2,
+            0,
+            0,
+            1000
         );
         let left = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
@@ -783,10 +880,12 @@ mod tests {
         );
         let hd = DiscreteImage::create(
             &himg,
-            &BrightnessHasher {},
+            &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            2,
+            2,0,
+            0,
+            1000
         );
         let top = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
@@ -820,10 +919,12 @@ mod tests {
         let himg = arr1c;
         let vd = DiscreteImage::create(
             &vimg,
-            &BrightnessHasher {},
+            &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            2,
+            2,0,
+            0,
+            1000
         );
         let left = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
@@ -847,10 +948,12 @@ mod tests {
         assert_eq!(vimg, vd.collect(None));
         let hd = DiscreteImage::create(
             &himg,
-            &BrightnessHasher {},
+            &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            2,
+            2,0,
+            0,
+            1000
         );
         let top = DiscreteImage {
             pixels: PixelGroup::Leaf(1u8),
@@ -886,9 +989,10 @@ mod tests {
         b.iter(move || {
             DiscreteImage::new(
                 v.clone(),
-                hashers::BrightnessHasher {},
+                hashers::MeanBrightnessHasher {},
                 w,
                 [200u16, 200, 200],
+                10,100000
             );
         });
     }
@@ -903,7 +1007,7 @@ mod tests {
         let w = img.width();
         let v: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
         b.iter(move || {
-            DiscreteImage::new(v.clone(), hashers::BrightnessHasher {}, w, 100u16);
+            DiscreteImage::new(v.clone(), hashers::MeanBrightnessHasher {}, w, 100u16, 10,100000);
         });
     }
 }

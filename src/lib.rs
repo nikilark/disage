@@ -340,13 +340,14 @@ pub mod open {
         hasher: H,
         max_splits : usize
     ) -> DiscreteImage<[u8; 3]> {
+        let max = img.height().max(img.width());
         let raw_pixels: Vec<[u8; 3]> = img.pixels().map(|f| f.0).collect();
         DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-            10,
+            ((max/2) as f64).log2() as usize + 1,
             max_splits
         )
     }
@@ -359,13 +360,14 @@ pub mod open {
         hasher: H,
         max_splits : usize
     ) -> DiscreteImage<[u16; 3]> {
+        let max = img.height().max(img.width());
         let raw_pixels: Vec<[u16; 3]> = img.pixels().map(|f| f.0).collect();
         DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-            10,
+            ((max/2) as f64).log2() as usize + 1,
             max_splits
         )
     }
@@ -376,13 +378,14 @@ pub mod open {
         hasher: H,
         max_splits : usize
     ) -> DiscreteImage<u8> {
+        let max = img.height().max(img.width());
         let raw_pixels: Vec<u8> = img.pixels().map(|f| f.0[0]).collect();
         DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-            10,
+            ((max/2) as f64).log2() as usize + 1,
             max_splits
         )
     }
@@ -393,13 +396,14 @@ pub mod open {
         hasher: H,
         max_splits : usize
     ) -> DiscreteImage<u16> {
+        let max = img.height().max(img.width());
         let raw_pixels: Vec<u16> = img.pixels().map(|f| f.0[0]).collect();
         DiscreteImage::new(
             raw_pixels,
             hasher,
             img.width(),
             precision,
-            10,
+            ((max/2) as f64).log2() as usize + 1,
             max_splits
         )
     }

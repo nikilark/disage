@@ -80,11 +80,12 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
     pub fn new<
         V: Clone + Debug + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
+        E : hashers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
     >(
         raw_data: Vec<impl pixels::AsHashedPixel<V>>,
         hasher: H,
         width: u32,
-        precision: T,
+        eq_checher: E,
         min_splits: usize,
         max_splits: usize,
     ) -> DiscreteImage<T> {
@@ -95,7 +96,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
             &hasher,
             Position::from_tuplexy((0, 0)),
             Dimensions::from_tuplehw((height as u32, width)),
-            precision,
+            &eq_checher,
             1,
             min_splits,
             max_splits,
@@ -143,12 +144,13 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
     fn create<
         V: Clone + Debug + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
+        E : hashers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync
     >(
         array: &[Vec<V>],
         hasher: &H,
         position: Position,
         size: Dimensions,
-        precision: T,
+        eq_checher: &E,
         step: usize,
         min_splits: usize,
         max_splits: usize,
@@ -166,8 +168,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                 } else if step > max_splits {
                     true
                 } else {
-                    DiscreteImage::positive_sub(f_hash, hasher.hash(array, spos, ssize))
-                        .lt(precision)
+                    eq_checher.eq(f_hash, hasher.hash(array, spos, ssize))
                 };
                 match eq {
                     true => PixelGroup::Leaf(f_hash),
@@ -180,7 +181,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                                         hasher,
                                         fpos,
                                         fsize,
-                                        precision,
+                                        eq_checher,
                                         step + 1,
                                         min_splits,
                                         max_splits,
@@ -192,7 +193,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                                         hasher,
                                         spos,
                                         ssize,
-                                        precision,
+                                        eq_checher,
                                         step + 1,
                                         min_splits,
                                         max_splits,
@@ -205,7 +206,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                                     hasher,
                                     fpos,
                                     fsize,
-                                    precision,
+                                    eq_checher,
                                     step + 1,
                                     min_splits,
                                     max_splits,
@@ -215,7 +216,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                                     hasher,
                                     spos,
                                     ssize,
-                                    precision,
+                                    eq_checher,
                                     step + 1,
                                     min_splits,
                                     max_splits,
@@ -317,10 +318,6 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
             .map(|row| row.to_vec())
             .collect()
     }
-
-    fn positive_sub(a: T, b: T) -> T {
-        a.substract(b)
-    }
 }
 
 #[cfg(test)]
@@ -341,7 +338,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            2,
+            &hashers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -370,7 +367,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            2,
+            &hashers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -410,7 +407,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            2,
+            &hashers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -440,7 +437,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            2,
+            &hashers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -465,13 +462,6 @@ mod tests {
             }
         );
         assert_eq!(himg, hd.collect(None));
-    }
-    #[test]
-    fn positive_sub_test() {
-        assert_eq!(
-            DiscreteImage::positive_sub(10, 20),
-            DiscreteImage::positive_sub(20, 10)
-        );
     }
 
     #[test]

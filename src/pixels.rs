@@ -38,6 +38,12 @@ impl AsHashedPixel<u16> for u16 {
     }
 }
 
+impl AsHashedPixel<u32> for u32 {
+    fn hash(&self) -> u32 {
+        self.clone()
+    }
+}
+
 impl AsHashedPixel<u8> for image::Luma<u8> {
     fn hash(&self) -> u8 {
         self.clone()[0]
@@ -118,6 +124,19 @@ impl PixelOpps<i32> for i32 {
     }
 
     fn lt(self, other: i32) -> bool {
+        self < other
+    }
+}
+
+impl PixelOpps<u32> for u32 {
+    fn substract(self, other: u32) -> u32 {
+        match self > other {
+            true => self - other,
+            false => other - self,
+        }
+    }
+
+    fn lt(self, other: u32) -> bool {
         self < other
     }
 }

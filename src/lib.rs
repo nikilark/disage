@@ -6,8 +6,6 @@ pub mod hashers;
 
 pub mod converters;
 
-pub mod open;
-
 pub mod discrete_image;
 
 #[allow(unused_imports)]

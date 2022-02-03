@@ -1,15 +1,16 @@
-use super::hashers::{MeanBrightnessHasher, PixelHasher, BrightnessChecker};
+use super::hashers::{MeanBrightnessHasher, PixelHasher};
+use super::checkers::BrightnessChecker;
 use super::*;
 extern crate test;
 
 #[test]
 fn pixels_to_array_test() {
     assert_eq!(
-        DiscreteImage::<u8>::pixels_to_array(&vec![42u8], 1),
+        converters::pixels_to_array(&vec![42u8], 1),
         vec![vec![42u8]]
     );
     assert_eq!(
-        DiscreteImage::<u8>::pixels_to_array(&vec![42u8; 9], 3),
+        converters::pixels_to_array(&vec![42u8; 9], 3),
         vec![
             vec![42u8, 42u8, 42u8],
             vec![42u8, 42u8, 42u8],
@@ -17,7 +18,7 @@ fn pixels_to_array_test() {
         ]
     );
     assert_eq!(
-        DiscreteImage::<u8>::pixels_to_array(&vec![42u8; 12], 3),
+        converters::pixels_to_array(&vec![42u8; 12], 3),
         vec![
             vec![42u8, 42u8, 42u8],
             vec![42u8, 42u8, 42u8],
@@ -26,7 +27,7 @@ fn pixels_to_array_test() {
         ]
     );
     assert_eq!(
-        DiscreteImage::<u8>::pixels_to_array(&vec![42u8; 12], 4),
+        converters::pixels_to_array(&vec![42u8; 12], 4),
         vec![
             vec![42u8, 42u8, 42u8, 42u8],
             vec![42u8, 42u8, 42u8, 42u8],

@@ -1,13 +1,7 @@
-use crate::pixels;
-
 use super::discrete_image::{Dimensions, Position};
 
 pub trait PixelHasher<V, T> {
     fn hash(&self, data: &[Vec<V>], position: Position, size: Dimensions) -> T;
-}
-
-pub trait PixelEqChecker<T> {
-    fn eq(&self, left : T, right : T) -> bool;
 }
 
 pub struct MeanBrightnessHasher {}
@@ -157,17 +151,5 @@ impl PixelHasher<[u16; 3], [u16; 3]> for MedianBrightnessHasher {
             return std::cmp::Ordering::Greater;
         });
         res[res.len() / 2]
-    }
-}
-
-pub struct BrightnessChecker<P : pixels::PixelOpps<P>>
-{
-    pub precision : P
-}
-
-impl<P:pixels::PixelOpps<P> + Clone> PixelEqChecker<P> for BrightnessChecker<P>
-{
-    fn eq(&self, left : P, right : P) -> bool {
-        return left.substract(right).lt(self.precision.clone());
     }
 }

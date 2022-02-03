@@ -1,5 +1,4 @@
-use super::hashers;
-use super::pixels;
+use super::{hashers, checkers, pixels, converters};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, std::cmp::PartialEq, Eq, PartialOrd, Ord)]
@@ -78,18 +77,18 @@ pub struct DiscreteImage<T> {
 
 impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteImage<T> {
     pub fn new<
-        V: Clone + Debug + std::marker::Send + std::marker::Sync,
+        V: Clone + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
-        E : hashers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
+        E : checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
     >(
-        raw_data: Vec<impl pixels::AsHashedPixel<V>>,
+        raw_data: Vec<V>,
         hasher: H,
         width: u32,
         eq_checher: E,
         min_splits: usize,
         max_splits: usize,
     ) -> DiscreteImage<T> {
-        let array = DiscreteImage::<T>::pixels_to_array(&raw_data, width);
+        let array = converters::pixels_to_array(&raw_data, width);
         let height = array.len();
         DiscreteImage::create(
             &array,
@@ -127,24 +126,32 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                 * (100f64))) as i8
     }
 
-    pub fn collect(self, borders: Option<T>) -> Vec<Vec<T>> {
+    pub fn collect(self) -> Vec<Vec<T>> {
         match self.pixels {
-            PixelGroup::Leaf(el) => match borders {
-                None => DiscreteImage::array_from_el(el, self.size),
-                Some(def) => DiscreteImage::array_with_borders(el, self.size, def),
-            },
+            PixelGroup::Leaf(el) => DiscreteImage::array_from_el(el, self.size),
             PixelGroup::Node(f, s, d) => {
-                let mut res = f.collect(borders);
-                DiscreteImage::concat(&mut res, s.collect(borders), d);
+                let mut res = f.collect();
+                DiscreteImage::concat(&mut res, s.collect(), d);
+                res
+            }
+        }
+    }
+
+    pub fn collect_with_borders(self, borders: T) -> Vec<Vec<T>> {
+        match self.pixels {
+            PixelGroup::Leaf(el) =>  DiscreteImage::array_with_borders(el, self.size, borders),
+            PixelGroup::Node(f, s, d) => {
+                let mut res = f.collect_with_borders(borders);
+                DiscreteImage::concat(&mut res, s.collect_with_borders(borders), d);
                 res
             }
         }
     }
 
     fn create<
-        V: Clone + Debug + std::marker::Send + std::marker::Sync,
+        V: Clone + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
-        E : hashers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync
+        E : checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync
     >(
         array: &[Vec<V>],
         hasher: &H,
@@ -305,19 +312,6 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
             }
         }
     }
-
-    pub fn pixels_to_array<V: Clone>(
-        pixels: &[impl pixels::AsHashedPixel<V>],
-        width: u32,
-    ) -> Vec<Vec<V>> {
-        pixels
-            .iter()
-            .map(|f| f.hash())
-            .collect::<Vec<V>>()
-            .chunks_exact(width as usize)
-            .map(|row| row.to_vec())
-            .collect()
-    }
 }
 
 #[cfg(test)]
@@ -338,7 +332,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            &hashers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -367,7 +361,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            &hashers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -407,7 +401,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            &hashers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -431,13 +425,13 @@ mod tests {
                 size: Dimensions::new(3, 6)
             }
         );
-        assert_eq!(vimg, vd.collect(None));
+        assert_eq!(vimg, vd.collect());
         let hd = DiscreteImage::create(
             &himg,
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            &hashers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker{precision : 2},
             0,
             0,
             1000,
@@ -461,7 +455,7 @@ mod tests {
                 size: Dimensions::new(6, 3)
             }
         );
-        assert_eq!(himg, hd.collect(None));
+        assert_eq!(himg, hd.collect());
     }
 
     #[test]

@@ -1,5 +1,5 @@
-use super::hashers::{MeanBrightnessHasher, PixelHasher};
 use super::checkers::BrightnessChecker;
+use super::hashers::{MeanBrightnessHasher, PixelHasher};
 use super::*;
 extern crate test;
 
@@ -64,7 +64,9 @@ fn open_discrete_rgb16(b: &mut test::Bencher) {
             v.clone(),
             hashers::MeanBrightnessHasher {},
             w,
-            BrightnessChecker{precision : [200u16, 200, 200]},
+            BrightnessChecker {
+                precision: [200u16, 200, 200],
+            },
             10,
             100000,
         );
@@ -85,7 +87,7 @@ fn open_discrete_luma16(b: &mut test::Bencher) {
             v.clone(),
             hashers::MeanBrightnessHasher {},
             w,
-            BrightnessChecker{precision : 100u16},
+            BrightnessChecker { precision: 100u16 },
             10,
             100000,
         );

@@ -1,4 +1,4 @@
-use super::{hashers, checkers, pixels, converters};
+use super::{checkers, converters, hashers, pixels};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, std::cmp::PartialEq, Eq, PartialOrd, Ord)]
@@ -79,7 +79,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
     pub fn new<
         V: Clone + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
-        E : checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
+        E: checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
     >(
         raw_data: Vec<V>,
         hasher: H,
@@ -139,7 +139,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
 
     pub fn collect_with_borders(self, borders: T) -> Vec<Vec<T>> {
         match self.pixels {
-            PixelGroup::Leaf(el) =>  DiscreteImage::array_with_borders(el, self.size, borders),
+            PixelGroup::Leaf(el) => DiscreteImage::array_with_borders(el, self.size, borders),
             PixelGroup::Node(f, s, d) => {
                 let mut res = f.collect_with_borders(borders);
                 DiscreteImage::concat(&mut res, s.collect_with_borders(borders), d);
@@ -151,7 +151,7 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
     fn create<
         V: Clone + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
-        E : checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync
+        E: checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
     >(
         array: &[Vec<V>],
         hasher: &H,
@@ -332,7 +332,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            &checkers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker { precision: 2 },
             0,
             0,
             1000,
@@ -361,7 +361,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            &checkers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker { precision: 2 },
             0,
             0,
             1000,
@@ -401,7 +401,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(3, 6),
-            &checkers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker { precision: 2 },
             0,
             0,
             1000,
@@ -431,7 +431,7 @@ mod tests {
             &MeanBrightnessHasher {},
             Position::new(0, 0),
             Dimensions::new(6, 3),
-            &checkers::BrightnessChecker{precision : 2},
+            &checkers::BrightnessChecker { precision: 2 },
             0,
             0,
             1000,

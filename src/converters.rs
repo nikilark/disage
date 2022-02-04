@@ -70,10 +70,7 @@ pub fn to_luma16(array: &[Vec<u16>]) -> image::ImageBuffer<image::Luma<u16>, Vec
     img
 }
 
-pub fn pixels_to_array<V: Clone>(
-    pixels: &[V],
-    width: u32,
-) -> Vec<Vec<V>> {
+pub fn pixels_to_array<V: Clone>(pixels: &[V], width: u32) -> Vec<Vec<V>> {
     pixels
         .iter()
         .map(|f| f.clone())
@@ -83,12 +80,14 @@ pub fn pixels_to_array<V: Clone>(
         .collect()
 }
 
-pub fn raw_luma<T:image::Primitive + 'static >(image : &image::ImageBuffer<image::Luma<T>, Vec<T>>) -> Vec<T> 
-{
+pub fn raw_luma<T: image::Primitive + 'static>(
+    image: &image::ImageBuffer<image::Luma<T>, Vec<T>>,
+) -> Vec<T> {
     image.pixels().map(|p| p.0[0]).collect()
 }
 
-pub fn raw_rgb<T:image::Primitive + 'static >(image : &image::ImageBuffer<image::Rgb<T>, Vec<T>>) -> Vec<[T;3]> 
-{
+pub fn raw_rgb<T: image::Primitive + 'static>(
+    image: &image::ImageBuffer<image::Rgb<T>, Vec<T>>,
+) -> Vec<[T; 3]> {
     image.pixels().map(|p| p.0).collect()
 }

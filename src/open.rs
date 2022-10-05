@@ -1,8 +1,8 @@
 use super::*;
 
 pub fn luma_discrete<
-    P: 'static + image::Primitive + std::marker::Send + std::marker::Sync,
-    T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync,
+    P: 'static + image::Primitive + std::marker::Send + std::marker::Sync + std::fmt::Debug,
+    T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync + std::fmt::Debug,
     H: hashers::PixelHasher<P, T> + std::marker::Send + std::marker::Sync,
     E: checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
 >(
@@ -23,8 +23,8 @@ pub fn luma_discrete<
 }
 
 pub fn rgb_discrete<
-    P: 'static + image::Primitive + std::marker::Send + std::marker::Sync,
-    T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync,
+    P: 'static + image::Primitive + std::marker::Send + std::marker::Sync + std::fmt::Debug,
+    T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync + std::fmt::Debug,
     H: hashers::PixelHasher<[P; 3], T> + std::marker::Send + std::marker::Sync,
     E: checkers::PixelEqChecker<T> + std::marker::Send + std::marker::Sync,
 >(

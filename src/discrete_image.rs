@@ -64,7 +64,7 @@ pub enum Splitted {
     Vertical,
 }
 #[derive(Debug, PartialEq, Clone)]
-enum PixelGroup<T> {
+pub enum PixelGroup<T> {
     Leaf(T),
     Node(Box<DiscreteImage<T>>, Box<DiscreteImage<T>>, Splitted),
 }
@@ -75,7 +75,9 @@ pub struct DiscreteImage<T> {
     pub size: Dimensions,
 }
 
-impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> DiscreteImage<T> {
+impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync + std::fmt::Debug>
+    DiscreteImage<T>
+{
     pub fn new<
         V: Clone + std::marker::Send + std::marker::Sync,
         H: hashers::PixelHasher<V, T> + std::marker::Send + std::marker::Sync,
@@ -100,6 +102,39 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
             min_splits,
             max_splits,
         )
+    }
+
+    pub fn contains(&self, pos: Position) -> bool {
+        let (x, y) = self.position.tuplexy();
+        let (h, w) = self.size.tuplehw();
+        let (dx, dy) = pos.tuplexy();
+        x <= dx && dx < x + w && y <= dy && dy < y + h
+    }
+
+    pub fn pixel_at(&self, pos: Position) -> Option<DiscretePixel<T>> {
+        if !self.contains(pos) {
+            return None;
+        }
+        match &self.pixels {
+            PixelGroup::Leaf(v) => Some(DiscretePixel {
+                value: v.clone(),
+                position: self.position,
+                size: self.size,
+            }),
+            PixelGroup::Node(l, r, _) => (if l.contains(pos) { l } else { r }).pixel_at(pos),
+        }
+    }
+
+    pub fn modify_leaf(&mut self, value: T, pos: Position) {
+        if !self.contains(pos) {
+            return;
+        }
+        match &mut self.pixels {
+            PixelGroup::Leaf(v) => *v = value,
+            PixelGroup::Node(l, r, _) => {
+                (if l.contains(pos) { l } else { r }).modify_leaf(value, pos)
+            }
+        }
     }
 
     pub fn group_count(&self) -> usize {
@@ -166,16 +201,42 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
         let (x, y) = position.tuplexy();
         let pixels: PixelGroup<T> = match size.tuplehw() {
             (1, 1) => PixelGroup::Leaf(hasher.hash(array, position, size)),
+            (1, 2) => PixelGroup::Leaf(hasher.hash(array, position, size)),
+            (2, 1) => PixelGroup::Leaf(hasher.hash(array, position, size)),
+            (2, 2) => PixelGroup::Leaf(hasher.hash(array, position, size)),
             _ => {
-                let ((fpos, fsize), (spos, ssize), split_at) =
-                    DiscreteImage::<T>::pre_split(height, width, x, y);
-                let f_hash = hasher.hash(array, fpos, fsize);
-                let eq = if step < min_splits {
-                    false
-                } else if step > max_splits {
-                    true
+                let (pref_dir, other_dir) = if width > height {
+                    (Splitted::Vertical, Splitted::Horizontal)
                 } else {
-                    eq_checher.eq(f_hash, hasher.hash(array, spos, ssize))
+                    (Splitted::Horizontal, Splitted::Vertical)
+                };
+                let ((mut fpos, mut fsize), (mut spos, mut ssize), mut split_at) =
+                    DiscreteImage::<T>::pre_split(height, width, x, y, pref_dir);
+                let mut f_hash = hasher.hash(&array, fpos, fsize);
+                let eq = if step > max_splits {
+                    true
+                } else if step < min_splits {
+                    false
+                } else {
+                    if eq_checher.eq(f_hash, hasher.hash(&array, spos, ssize)) {
+                        if height > 1 && width > 1 {
+                            let ((fpos2, fsize2), (spos2, ssize2), split_at2) =
+                                DiscreteImage::<T>::pre_split(height, width, x, y, other_dir);
+                            let f_hash2 = hasher.hash(&array, fpos2, fsize2);
+                            if eq_checher.eq(f_hash2, hasher.hash(&array, spos2, ssize2)) {
+                                true
+                            } else {
+                                ((fpos, fsize), (spos, ssize), split_at) =
+                                    ((fpos2, fsize2), (spos2, ssize2), split_at2);
+                                f_hash = f_hash2;
+                                false
+                            }
+                        } else {
+                            true
+                        }
+                    } else {
+                        false
+                    }
                 };
                 match eq {
                     true => PixelGroup::Leaf(f_hash),
@@ -247,10 +308,14 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
         width: u32,
         x: u32,
         y: u32,
+        dir: Splitted,
     ) -> ((Position, Dimensions), (Position, Dimensions), Splitted) {
-        match width > height {
-            true => {
+        match dir {
+            Splitted::Vertical => {
                 let middle = width / 2;
+                if middle == 0 {
+                    println!("Vertical {:?}, {:?}", (height, width), (x, y))
+                }
                 let f = (
                     Position::from_tuplexy((x, y)),
                     Dimensions::from_tuplehw((height, middle)),
@@ -261,8 +326,11 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync> Dis
                 );
                 (f, s, Splitted::Vertical)
             }
-            false => {
+            Splitted::Horizontal => {
                 let middle = height / 2;
+                if middle == 0 {
+                    println!("Horizontal {:?}, {:?}", (height, width), (x, y))
+                }
                 let f = (
                     Position::from_tuplexy((x, y)),
                     Dimensions::from_tuplehw((middle, width)),

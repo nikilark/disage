@@ -18,6 +18,27 @@ pub fn to_rgb8(array: &[Vec<[u8; 3]>]) -> image::RgbImage {
     img
 }
 
+pub fn to_rgb8_from_luma8(array: &[Vec<u8>]) -> image::RgbImage {
+    let (h, w) = (array.len(), array[0].len());
+    let mut img = image::ImageBuffer::new(w as u32, h as u32);
+    img.enumerate_pixels_mut()
+        .for_each(|(x, y, pix): (u32, u32, &mut image::Rgb<u8>)| {
+            pix.0 = [array[y as usize][x as usize]; 3]
+        });
+    img
+}
+
+pub fn to_luma8_from_rgb8(array: &[Vec<[u8; 3]>]) -> image::GrayImage {
+    let (h, w) = (array.len(), array[0].len());
+    let mut img = image::ImageBuffer::new(w as u32, h as u32);
+    img.enumerate_pixels_mut()
+        .for_each(|(x, y, pix): (u32, u32, &mut image::Luma<u8>)| {
+            let p = array[y as usize][x as usize];
+            pix.0 = [((p[0] as u32 + p[1] as u32 + p[2] as u32) / 3) as u8]
+        });
+    img
+}
+
 pub fn to_rgb16(array: &[Vec<[u16; 3]>]) -> image::ImageBuffer<image::Rgb<u16>, Vec<u16>> {
     let (h, w) = (array.len(), array[0].len());
     let mut img = image::ImageBuffer::new(w as u32, h as u32);

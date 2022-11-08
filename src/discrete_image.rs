@@ -155,6 +155,17 @@ impl<T: pixels::PixelOpps<T> + Copy + std::marker::Send + std::marker::Sync + st
         }
     }
 
+    pub fn pixels_mut(&mut self) -> Vec<DiscretePixel<&mut T>> {
+        match &mut self.pixels {
+            PixelGroup::Leaf(v) => vec![DiscretePixel::new(v, self.position, self.size)],
+            PixelGroup::Node(f, s, _) => {
+                let mut fp = f.pixels_mut();
+                fp.append(&mut s.pixels_mut());
+                fp
+            }
+        }
+    }
+
     pub fn compression(&self) -> i8 {
         (100f64
             - ((self.group_count() as f64 / (self.size.width * self.size.height) as f64)

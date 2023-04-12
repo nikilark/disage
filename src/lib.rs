@@ -18,5 +18,8 @@ pub use crate::discrete_image::*;
 #[allow(unused_imports)]
 pub use crate::open::*;
 
+#[allow(unused_imports)]
+pub use image;
+
 #[cfg(test)]
 mod tests;

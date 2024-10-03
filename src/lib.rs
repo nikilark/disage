@@ -1,25 +1,14 @@
-#![feature(test)]
+pub mod helpers;
 
-pub mod pixels;
+#[allow(unused_imports)]
+pub use crate::helpers::*;
 
-pub mod hashers;
+pub mod types;
 
-pub mod converters;
-
-pub mod checkers;
+#[allow(unused_imports)]
+pub use crate::types::*;
 
 pub mod discrete_image;
 
-pub mod open;
-
 #[allow(unused_imports)]
 pub use crate::discrete_image::*;
-
-#[allow(unused_imports)]
-pub use crate::open::*;
-
-#[allow(unused_imports)]
-pub use image;
-
-#[cfg(test)]
-mod tests;
